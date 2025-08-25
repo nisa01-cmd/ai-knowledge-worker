@@ -23,13 +23,13 @@ allow_headers=["*"],
 
 @app.get("/health")
 def health():
-return {"status": "ok"}
+    return {"status": "ok"}
 
 
 # Example protected route
 @app.get("/me")
 def me(user_id: int = Depends(get_current_user_id)):
-return {"user_id": user_id}
+    return {"user_id": user_id}
 
 
 app.include_router(auth_router)
