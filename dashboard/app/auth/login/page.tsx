@@ -1,17 +1,20 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation"; // ✅ for navigation
 import { motion } from "framer-motion";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.email || !form.password) {
@@ -20,8 +23,32 @@ export default function LoginPage() {
     }
 
     setError(null);
-    // 🔗 Later: call your API here
-    alert(`Logging in with: ${form.email}`);
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:8000/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        throw new Error("Invalid email or password");
+      }
+
+      const data = await res.json();
+
+      // ✅ Save JWT + user info
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // ✅ Redirect to dashboard
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,9 +92,10 @@ export default function LoginPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button
             type="submit"
-            className="bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+            disabled={loading}
+            className="bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
         <p className="text-center mt-4 text-sm text-gray-600">

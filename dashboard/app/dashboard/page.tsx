@@ -1,8 +1,8 @@
 "use client";
 import { motion } from "framer-motion";
-import Sidebar from "@/components/Sidebar";
-import ChartCard from "@/components/ChartCard";
-import DraggableCard from "@/components/DraggableCard";
+import Sidebar from "../../components/Sidebar";
+import ChartCard from "../../components/ChartCard";
+import DraggableCard from "../../components/DraggableCard";
 
 export default function Dashboard() {
   return (

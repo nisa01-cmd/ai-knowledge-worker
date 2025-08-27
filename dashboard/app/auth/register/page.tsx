@@ -11,12 +11,13 @@ export default function RegisterPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.name || !form.email || !form.password || !form.confirmPassword) {
@@ -29,9 +30,31 @@ export default function RegisterPage() {
       return;
     }
 
-    setError(null);
-    // 🔗 Later: API call for register
-    alert(`Registered: ${form.name} (${form.email})`);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+        }),
+      });
+
+      if (res.ok) {
+        setSuccess("User registered successfully!");
+        setError(null);
+        setForm({ name: "", email: "", password: "", confirmPassword: "" });
+      } else {
+        const data = await res.json();
+        setError(data.detail || "Registration failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong. Please try again.");
+    }
   };
 
   return (
@@ -44,6 +67,8 @@ export default function RegisterPage() {
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Register
         </h2>
+        {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+        {success && <p className="text-green-500 text-sm mb-2">{success}</p>}
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
           <input
             type="text"
@@ -92,8 +117,6 @@ export default function RegisterPage() {
               {showPassword ? "Hide Passwords" : "Show Passwords"}
             </button>
           </div>
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <button
             type="submit"
