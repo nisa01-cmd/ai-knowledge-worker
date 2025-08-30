@@ -2,12 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from .db import get_db
+from .models import Task
 from .schemas import InsightOut
 from .deps import get_current_user_id
 from dotenv import load_dotenv
 import os, datetime, logging
 import httpx
-from auth_basic import authenticate
+import logging
 
 # ----------------- SETUP -----------------
 router = APIRouter(prefix="/worker", tags=["worker"])
@@ -17,10 +18,9 @@ ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
-YAHOO_API_KEY = os.getenv("YAHOO_API_KEY")
-YAHOO_API_HOST = os.getenv("YAHOO_API_HOST")
 
 logging.basicConfig(level=logging.INFO)
+
 
 # ----------------- HELPERS -----------------
 async def fetch_news(query="AI", language="en", page_size=5):
@@ -60,9 +60,21 @@ async def get_stock_data(symbol: str = "RELIANCE.NS"):
     Fetch intraday stock data from Yahoo Finance via RapidAPI.
     symbol examples: 'RELIANCE.NS' (NSE), '500325.BO' (BSE)
     """
+    import httpx
+    YAHOO_API_KEY = os.getenv("YAHOO_API_KEY")
+    YAHOO_API_HOST = os.getenv("YAHOO_API_HOST")
+
     url = f"https://{YAHOO_API_HOST}/stock/v2/get-chart"
-    params = {"symbol": symbol, "interval": "5m", "range": "1d", "region": "IN"}
-    headers = {"X-RapidAPI-Key": YAHOO_API_KEY, "X-RapidAPI-Host": YAHOO_API_HOST}
+    params = {
+        "symbol": symbol,
+        "interval": "5m",
+        "range": "1d",
+        "region": "IN"
+    }
+    headers = {
+        "X-RapidAPI-Key": YAHOO_API_KEY,
+        "X-RapidAPI-Host": YAHOO_API_HOST
+    }
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -70,6 +82,7 @@ async def get_stock_data(symbol: str = "RELIANCE.NS"):
             res.raise_for_status()
             data = res.json()
 
+        # Extracting timestamps & indicators
         timestamps = data["chart"]["result"][0]["timestamp"]
         indicators = data["chart"]["result"][0]["indicators"]["quote"][0]
 
@@ -99,14 +112,12 @@ async def get_stock_data(symbol: str = "RELIANCE.NS"):
         logging.error(f"Yahoo Finance RapidAPI error: {e}")
         raise HTTPException(status_code=503, detail="Yahoo Finance fetch error")
 
-
-# ----------------- ROUTES -----------------
 @router.post("/run", response_model=InsightOut)
 async def run_worker(
     kind: str = Query("stocks", description="Type of worker: 'stocks' or 'news'"),
     symbol: str = Query("RELIANCE.NS", description="Stock symbol for Yahoo Finance"),
     db: Session = Depends(get_db),
-    user: str = Depends(authenticate)   # <-- use Basic Auth instead of token
+    user_id: int = Depends(get_current_user_id)
 ):
     if kind == "stocks":
         data = await get_stock_data(symbol)
@@ -119,4 +130,3 @@ async def run_worker(
         }
     else:
         raise HTTPException(status_code=400, detail="Only stocks supported for now")
-

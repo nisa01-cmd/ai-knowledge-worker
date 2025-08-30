@@ -1,21 +1,26 @@
-from fastapi import Header, HTTPException
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 import os
-from typing import Optional
-
 
 JWT_SECRET = os.getenv("JWT_SECRET", "changeme")
 JWT_ALG = os.getenv("JWT_ALG", "HS256")
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def get_current_user_id(authorization: Optional[str] = Header(default=None)) -> int:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing token")
-    
-    token = authorization.split(" ", 1)[1]
-
+def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
-        return int(payload["sub"]) # user id
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # ✅ You signed 'sub' in auth.py
+    uid = payload.get("sub") or payload.get("user_id") or payload.get("id")
+    if not uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+    try:
+        return int(uid)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user id")
