@@ -23,9 +23,44 @@ export async function fetchNews() {
 }
 
 export async function fetchStock(symbol: string) {
-  const res = await api.get(`/api/stock/${symbol}`);
-  return res.data; // returns stock JSON
+  try {
+    const res = await api.post(
+      `/worker/run?kind=stocks&symbol=${symbol}`,
+      {},
+      {
+        auth: {
+          username: "youremail@example.com",
+          password: "yourpassword123",
+        },
+      }
+    );
+
+    const raw = res.data;
+    const trend = raw.trend || [];
+
+    const latest_price = trend.length ? trend[trend.length - 1].close : 0;
+    const prev_price = trend.length > 1 ? trend[trend.length - 2].close : latest_price;
+    const change_pct = prev_price ? ((latest_price - prev_price) / prev_price) * 100 : 0;
+
+    return {
+      symbol: raw.symbol || symbol,
+      latest_price,
+      change_pct: Math.round(change_pct * 100) / 100,
+      trend: trend.map((d: any) => ({
+        date: d.date,
+        close: d.close,
+        high: d.high,
+        low: d.low,
+        volume: d.volume,
+      })),
+    };
+  } catch (err) {
+    console.error("Error fetching stock:", err);
+    throw err;
+  }
 }
+
+
 
 export async function chatWithGemini(prompt: string) {
   const res = await api.post("/api/gemini", { prompt });
@@ -40,3 +75,17 @@ export async function uploadFile(file: File) {
   });
   return res.data; // returns upload result
 }
+
+export async function fetchTrends(params?: { days?: number; query?: string }) {
+  const res = await api.get("/api/trends", { params });
+  return res.data as {
+    series: { date: string; count: number }[];
+    meta: { query: string; days: number; totalArticles: number; generatedAt: string };
+  };
+}
+
+export async function fetchInsights() {
+  const res = await api.get("/api/insights/daily");
+  return res.data;
+}
+
