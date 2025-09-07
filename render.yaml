@@ -4,7 +4,6 @@ services:
     env: docker
     plan: free
     dockerfilePath: ./docker/Dockerfile
-    buildContext: .
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
