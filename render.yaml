@@ -3,12 +3,27 @@ services:
     name: ai-knowledge-worker-backend
     env: docker
     plan: free
-    autoDeploy: true
     dockerfilePath: ./docker/Dockerfile
+    buildContext: .
+    autoDeploy: true
     envVars:
       - key: DATABASE_URL
         sync: false
-      - key: OPENAI_API_KEY
+      - key: NEWS_API_KEY
         sync: false
-      - key: SECRET_KEY
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ALG
+        sync: false
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        sync: false
+      - key: YAHOO_API_KEY
+        sync: false
+      - key: YAHOO_API_HOST
         sync: false
