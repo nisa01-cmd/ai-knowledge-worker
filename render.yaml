@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ai-knowledge-worker-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    dockerfilePath: ./docker/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false

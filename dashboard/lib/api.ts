@@ -9,8 +9,13 @@ const api = axios.create({ baseURL: BACKEND_URL });
 // Attach token if exists
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("access_token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      // Clear old token if missing/invalid
+      localStorage.removeItem("token");
+    }
   }
   return config;
 });
@@ -61,20 +66,32 @@ export async function fetchInsights() {
   return res.data;
 }
 
-export async function fetchStock(symbol: string) {
-  const res = await api.post(`/worker/run?kind=stocks&symbol=${symbol}`, {});
+export async function fetchStock(symbol: string, period = "6mo", interval = "1d") {
+  const token = localStorage.getItem("access_token");
+  if (!token) throw new Error("No auth token — please login again.");
+
+  const res = await api.post(
+    "/worker/run",
+    {},
+    {
+      params: { kind: "stocks", symbol, period, interval },
+      headers: { Authorization: `Bearer ${token}` }, // ✅ force attach token
+    }
+  );
+
   const raw = res.data;
-  const trend = raw.trend || [];
-  const latest = trend.length ? trend[trend.length - 1].close : 0;
-  const prev = trend.length > 1 ? trend[trend.length - 2].close : latest;
-  const change_pct = prev ? ((latest - prev) / prev) * 100 : 0;
 
   return {
     symbol: raw.symbol || symbol,
-    latest_price: latest,
-    change_pct: Math.round(change_pct * 100) / 100,
-    trend: trend.map((d: any) => ({
-      date: d.date, close: d.close, high: d.high, low: d.low, volume: d.volume,
+    latest_price: raw.latest_price,
+    change_pct: raw.change_pct,
+    trend: (raw.trend || []).map((d: any) => ({
+      date: d.date,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume,
     })),
   };
 }

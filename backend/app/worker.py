@@ -1,4 +1,4 @@
-# worker_router.py
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from .db import get_db
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os, datetime, logging
 import httpx
 import logging
+import yfinance as yf
 
 # ----------------- SETUP -----------------
 router = APIRouter(prefix="/worker", tags=["worker"])
@@ -54,21 +55,15 @@ async def analyze_with_gemini(text: str):
         logging.error(f"Gemini API request failed: {e}")
         return "AI summary unavailable."
 
-
-async def get_stock_data(symbol: str = "RELIANCE.NS"):
-    """
-    Fetch intraday stock data from Yahoo Finance via RapidAPI.
-    symbol examples: 'RELIANCE.NS' (NSE), '500325.BO' (BSE)
-    """
-    import httpx
+async def get_stock_data(symbol: str = "RELIANCE.NS", interval: str = "1d", range_: str = "1y"):
     YAHOO_API_KEY = os.getenv("YAHOO_API_KEY")
     YAHOO_API_HOST = os.getenv("YAHOO_API_HOST")
 
     url = f"https://{YAHOO_API_HOST}/stock/v2/get-chart"
     params = {
         "symbol": symbol,
-        "interval": "5m",
-        "range": "1d",
+        "interval": interval,   # e.g. "1d", "1wk", "5m"
+        "range": range_,        # e.g. "1mo", "3mo", "6mo", "1y", "5y"
         "region": "IN"
     }
     headers = {
@@ -82,14 +77,13 @@ async def get_stock_data(symbol: str = "RELIANCE.NS"):
             res.raise_for_status()
             data = res.json()
 
-        # Extracting timestamps & indicators
         timestamps = data["chart"]["result"][0]["timestamp"]
         indicators = data["chart"]["result"][0]["indicators"]["quote"][0]
 
         series = []
         for i, ts in enumerate(timestamps):
             series.append({
-                "date": datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M"),
+                "date": datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d"),
                 "open": indicators["open"][i],
                 "high": indicators["high"][i],
                 "low": indicators["low"][i],
@@ -115,18 +109,33 @@ async def get_stock_data(symbol: str = "RELIANCE.NS"):
 @router.post("/run", response_model=InsightOut)
 async def run_worker(
     kind: str = Query("stocks", description="Type of worker: 'stocks' or 'news'"),
-    symbol: str = Query("RELIANCE.NS", description="Stock symbol for Yahoo Finance"),
+    symbol: str = Query("RELIANCE.NS", description="Stock symbol (Yahoo Finance)"),
+    period: str = Query("6mo", description="Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max)"),
+    interval: str = Query("1d", description="Data interval (1m, 5m, 15m, 1d, 1wk, 1mo)"),
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    user_id: int = Depends(get_current_user_id),  # <-- ensures token is valid
 ):
+    """
+    Run the AI worker.
+    Requires a valid JWT in the Authorization header.
+    Example: Authorization: Bearer <token>
+    """
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: missing or invalid token"
+        )
+
     if kind == "stocks":
-        data = await get_stock_data(symbol)
+        data = await get_stock_data(symbol, period, interval)
         return {
             "source": "stocks",
             "symbol": symbol,
             "latest_price": data["latest_price"],
             "change_pct": data["change_pct"],
-            "trend": data["trend"]
+            "trend": data["trend"],
+            "user_id": user_id,  # <-- helpful for debugging
         }
-    else:
-        raise HTTPException(status_code=400, detail="Only stocks supported for now")
+
+    raise HTTPException(status_code=400, detail="Only stocks supported for now")
